@@ -38,8 +38,39 @@ Buffers.prototype.unshift = function () {
     return this.length;
 };
 
-Buffers.prototype.copy = function (dst, dStart, start, end) {
-    return this.slice(start, end).copy(dst, dStart, 0, end - start);
+Buffers.prototype.copy = function (targetBuffer, targetStart, sourceStart, sourceEnd) {
+    if (targetStart === undefined) targetStart = 0;
+    else if (targetStart < 0 || targetStart >= targetBuffer.length) throw new Error("targetStart out of bounds");
+    
+    if (sourceStart === undefined) sourceStart = 0;
+    else if (sourceStart < 0 || sourceStart >= this.length) throw new Error("sourceStart out of bounds");
+    
+    if (sourceEnd === undefined) sourceEnd = this.length;
+    else if (sourceEnd < 0 || sourceEnd > this.length) throw new Error("sourceEnd out of bounds");
+    
+    var len = sourceEnd - sourceStart;
+    var targetEnd = Math.min(targetStart + len, targetBuffer.length);
+    
+    len = targetEnd - targetStart;
+    sourceEnd = sourceStart + len;
+    
+    var si = sourceStart, ti = targetStart;
+    var buffers = this.buffers, startBytes = 0;
+    for (var ii = 0; ii < buffers.length; ii ++) {
+        var buflen = buffers[ii].length;
+        
+        var start = Math.max(sourceStart - startBytes, 0);
+        if (start < buflen) {
+            var end = Math.min(sourceEnd - startBytes, buflen);
+            if (end < 0) {
+                break;
+            }
+            buffers[ii].copy(targetBuffer, ti, start, end);
+            ti += end - start;
+        }
+        
+        startBytes += buflen;
+    }
 };
 
 Buffers.prototype.splice = function (i, howMany) {
@@ -133,34 +164,13 @@ Buffers.prototype.splice = function (i, howMany) {
 };
  
 Buffers.prototype.slice = function (i, j) {
-    var buffers = this.buffers;
     if (j === undefined) j = this.length;
     if (i === undefined) i = 0;
     
     if (j > this.length) j = this.length;
     
-    var startBytes = 0;
-    for (
-        var si = 0;
-        si < buffers.length && startBytes + buffers[si].length <= i;
-        si ++
-    ) { startBytes += buffers[si].length }
-    
     var target = new Buffer(j - i);
-    
-    var ti = 0;
-    for (var ii = si; ti < j - i && ii < buffers.length; ii++) {
-        var len = buffers[ii].length;
-        
-        var start = ti === 0 ? i - startBytes : 0;
-        var end = ti + len >= j - i
-            ? Math.min(start + (j - i) - ti, len)
-            : len
-        ;
-        
-        buffers[ii].copy(target, ti, start, end);
-        ti += end - start;
-    }
+    this.copy(target, 0, i, j);
     
     return target;
 };
