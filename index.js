@@ -57,7 +57,8 @@ Buffers.prototype.copy = function (targetBuffer, targetStart, sourceStart, sourc
     var si = sourceStart, ti = targetStart;
     var buffers = this.buffers, startBytes = 0;
     for (var ii = 0; ii < buffers.length; ii ++) {
-        var buflen = buffers[ii].length;
+        var buffer = buffers[ii],
+            buflen = buffer.length;
         
         var start = Math.max(sourceStart - startBytes, 0);
         if (start < buflen) {
@@ -65,7 +66,7 @@ Buffers.prototype.copy = function (targetBuffer, targetStart, sourceStart, sourc
             if (end < 0) {
                 break;
             }
-            buffers[ii].copy(targetBuffer, ti, start, end);
+            buffer.copy(targetBuffer, ti, start, end);
             ti += end - start;
         }
         
@@ -163,15 +164,55 @@ Buffers.prototype.splice = function (i, howMany) {
     return removed;
 };
  
-Buffers.prototype.slice = function (i, j) {
-    if (j === undefined) j = this.length;
-    if (i === undefined) i = 0;
+Buffers.prototype.slice = function (start, end) {
+    if (start === undefined) start = 0;
+    else if (start < 0 || start > this.length) throw new Error("oob");
     
-    if (j > this.length) j = this.length;
+    if (end === undefined) end = this.length;
+    else if (end < start || end > this.length) throw new Error("oob");
     
-    var target = new Buffer(j - i);
-    this.copy(target, 0, i, j);
+    if (start === end) return new Buffers();
     
+    var target = new Buffers();
+    var buffers = this.buffers, startBytes = 0;
+    for (var ii = 0; ii < buffers.length; ii ++) {
+        var buffer = buffers[ii],
+            buflen = buffer.length;
+        
+        var start = Math.max(start - startBytes, 0);
+        if (start < buflen) {
+            var end = Math.min(end - startBytes, buflen);
+            if (end < 0) {
+                break;
+            }
+            
+            var slice;
+            if (start === 0 && end === buflen) {
+                slice = buffer;
+            }
+            else {
+                slice = buffer.slice(start, end);
+            }
+            target.push(slice);
+        }
+        
+        startBytes += buflen;
+    }
+    
+    return target;
+};
+
+Buffers.prototype.toBuffer = function (start, end) {
+    if (start === undefined) start = 0;
+    else if (start < 0 || start > this.length) throw new Error("oob");
+    
+    if (end === undefined) end = this.length;
+    else if (end < start || end > this.length) throw new Error("oob");
+    
+    if (start === end) return new Buffer(0);
+    
+    var target = new Buffer(end - start);
+    this.copy(target, 0, start, end);
     return target;
 };
 
